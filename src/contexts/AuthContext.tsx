@@ -8,6 +8,7 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   signOut: () => Promise<void>;
+  signInAsGuest: () => void;
   userRole: 'user' | 'admin';
   isDemoMode: boolean;
 }
@@ -56,27 +57,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (session?.user) {
         await resolveRole(session.user);
-      } else if (demoAuth.enabled) {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: demoAuth.email,
-          password: demoAuth.password,
-        });
-
-        if (error) {
-          console.error('Demo auto sign-in failed:', error.message);
-        } else if (data.session?.user) {
-          if (!isMounted) return;
-          setSession(data.session);
-          setUser(data.session.user);
-          await resolveRole(data.session.user);
-        }
       } else {
         setUserRole('user');
       }
 
       if (isMounted) setLoading(false);
     }).catch(err => {
-      console.error("Auth initialization failed:", err);
+      console.warn("Auth initialization failed (expected in demo mode):", err);
       if (isMounted) setLoading(false);
     });
 
@@ -96,7 +83,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
+  const signInAsGuest = () => {
+    const guestUser = {
+      id: 'demo-guest-user',
+      email: demoAuth.email || 'guest@demo.com',
+      user_metadata: { avatar_url: '', full_name: 'Demo Guest' },
+      app_metadata: {},
+      aud: 'authenticated',
+      created_at: new Date().toISOString(),
+    } as unknown as User;
+    setUser(guestUser);
+    setSession({ user: guestUser } as unknown as Session);
+    setUserRole('user');
+  };
+
   const signOut = async () => {
+    if (demoAuth.enabled && user?.id === 'demo-guest-user') {
+      setUser(null);
+      setSession(null);
+      setUserRole('user');
+      return;
+    }
     await supabase.auth.signOut();
   };
 
@@ -105,6 +112,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     session,
     loading,
     signOut,
+    signInAsGuest,
     userRole,
     isDemoMode: demoAuth.enabled,
   };

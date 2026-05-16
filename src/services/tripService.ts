@@ -1,5 +1,13 @@
 import apiClient from './api';
 import { Trip } from '../types';
+import {
+  DEMO_DASHBOARD_FEEDBACKS,
+  DEMO_DASHBOARD_RUNS,
+  DEMO_DASHBOARD_STATS,
+  DEMO_TRIP_ID,
+  getDemoHistoryTrips,
+  getDemoTripById,
+} from '../mockData';
 
 export interface TripPlanRequest {
   origin: string;
@@ -14,24 +22,37 @@ export interface TripPlanRequest {
 const tripService = {
   // Create a new planning task
   planTrip: async (data: TripPlanRequest): Promise<{ id: string }> => {
+    if (import.meta.env.VITE_DEMO_MODE === 'true') {
+      return { id: DEMO_TRIP_ID };
+    }
     const response = await apiClient.post('/trips/plan', data);
     return response.data;
   },
 
   // Get trip details
   getTripDetails: async (id: string): Promise<Trip> => {
+    if (import.meta.env.VITE_DEMO_MODE === 'true') {
+      const demoTrip = getDemoTripById(id);
+      if (demoTrip) return demoTrip;
+    }
     const response = await apiClient.get(`/trips/${id}`);
     return response.data;
   },
 
   // Get history
   getHistory: async (): Promise<Trip[]> => {
+    if (import.meta.env.VITE_DEMO_MODE === 'true') {
+      return getDemoHistoryTrips();
+    }
     const response = await apiClient.get('/history');
     return response.data;
   },
 
   // Regenerate trip
   regenerateTrip: async (id: string): Promise<{ id: string }> => {
+    if (import.meta.env.VITE_DEMO_MODE === 'true') {
+      return { id: DEMO_TRIP_ID };
+    }
     const response = await apiClient.post(`/trips/${id}/regenerate`);
     return response.data;
   },
@@ -49,24 +70,37 @@ const tripService = {
 
   // Admin: Get system stats
   getAdminStats: async () => {
+    if (import.meta.env.VITE_DEMO_MODE === 'true') {
+      return DEMO_DASHBOARD_STATS;
+    }
     const response = await apiClient.get('/admin/stats');
     return response.data;
   },
 
   // Admin: Get planner runs (logs)
   getPlannerRuns: async () => {
+    if (import.meta.env.VITE_DEMO_MODE === 'true') {
+      return DEMO_DASHBOARD_RUNS;
+    }
     const response = await apiClient.get('/admin/planner-runs');
     return response.data;
   },
 
   // Admin: Get all feedback
   getAllFeedback: async () => {
+    if (import.meta.env.VITE_DEMO_MODE === 'true') {
+      return DEMO_DASHBOARD_FEEDBACKS;
+    }
     const response = await apiClient.get('/admin/feedback');
     return response.data;
   },
 
   // Polling logic for long-running generation
   pollTripUntilComplete: async (id: string, interval = 3000, maxAttempts = 20): Promise<Trip> => {
+    if (import.meta.env.VITE_DEMO_MODE === 'true') {
+      const demoTrip = getDemoTripById(id);
+      if (demoTrip) return demoTrip;
+    }
     let attempts = 0;
     
     while (attempts < maxAttempts) {

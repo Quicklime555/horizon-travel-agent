@@ -12,13 +12,13 @@ interface NavbarProps {
 export function Navbar({ showSearch = false }: NavbarProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { userRole, signOut, user, isDemoMode } = useAuth();
+  const { userRole, signOut, user } = useAuth();
 
   const tabs = [
     { id: 'planner', label: '规划专家', path: '/planner' },
-    ...(!isDemoMode ? [{ id: 'destinations', label: '热门目的地', path: '/destinations' }] : []),
-    ...(!isDemoMode ? [{ id: 'history', label: '历史行程', path: '/history' }] : []),
-    ...(!isDemoMode && userRole === 'admin' ? [{ id: 'dashboard', label: '系统概览', path: '/admin' }] : []),
+    { id: 'destinations', label: '热门目的地', path: '/destinations' },
+    { id: 'history', label: '历史行程', path: '/history' },
+    ...(userRole === 'admin' ? [{ id: 'dashboard', label: '系统概览', path: '/admin' }] : []),
   ];
 
   const activeTab = tabs.find(tab => location.pathname === tab.path)?.id;
@@ -77,11 +77,7 @@ export function Navbar({ showSearch = false }: NavbarProps) {
             <Bell size={20} />
           </button>
           
-          {isDemoMode ? (
-            <div className="hidden md:flex items-center rounded-full bg-amber-50 px-4 py-2 text-xs font-bold tracking-wider text-amber-700">
-              DEMO MODE
-            </div>
-          ) : user ? (
+          {user ? (
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full border border-gray-200 overflow-hidden cursor-pointer active:scale-95 transition-transform group relative">
                 <img 

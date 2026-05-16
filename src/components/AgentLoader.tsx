@@ -1,9 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sparkles, Brain, Map, Compass, AlertCircle, RefreshCcw } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { useQuery } from '@tanstack/react-query';
 import tripService from '../services/tripService';
+import {
+  AGENT_LOADER_COMPLETION_DELAY_MS,
+  AGENT_LOADER_MIN_DURATION_MS,
+  AGENT_LOADER_PROGRESS_MAX_BEFORE_COMPLETE,
+  getAgentLoaderProgress,
+  shouldCompleteAgentLoader,
+} from './agentLoaderProgress';
 
 interface AgentLoaderProps {
   onComplete: () => void;
@@ -12,6 +19,10 @@ interface AgentLoaderProps {
 
 export function AgentLoader({ onComplete, tripId }: AgentLoaderProps) {
   const [messageIndex, setMessageIndex] = useState(0);
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const [showReadyState, setShowReadyState] = useState(false);
+  const [displayProgress, setDisplayProgress] = useState(3);
+  const animationFrameRef = useRef<number>();
 
   const messages = [
     { text: "正在分析当地天气与季节特征...", icon: <Sparkles className="text-blue-400" size={32} /> },
@@ -20,7 +31,6 @@ export function AgentLoader({ onComplete, tripId }: AgentLoaderProps) {
     { text: "即将完成个性化行程定制...", icon: <Compass className="text-amber-400" size={32} /> },
   ];
 
-  // React Query Polling Logic
   const { 
     data: trip, 
     isError, 
@@ -31,29 +41,74 @@ export function AgentLoader({ onComplete, tripId }: AgentLoaderProps) {
     queryKey: ['pollTrip', tripId],
     queryFn: () => tripService.pollTripUntilComplete(tripId!),
     enabled: !!tripId,
-    retry: 1, // Auto-retry once on failure as requested
+    retry: 1,
     staleTime: 0,
     gcTime: 0,
   });
 
-  // Handle completion
   useEffect(() => {
-    if (trip) {
+    const startTime = performance.now();
+    
+    const updateProgress = () => {
+      const currentElapsed = Math.min(performance.now() - startTime, AGENT_LOADER_MIN_DURATION_MS);
+      setElapsedMs(currentElapsed);
+      animationFrameRef.current = requestAnimationFrame(updateProgress);
+    };
+    
+    animationFrameRef.current = requestAnimationFrame(updateProgress);
+    
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (shouldCompleteAgentLoader(elapsedMs, !!trip)) {
+      setShowReadyState(true);
       const timer = setTimeout(() => {
         onComplete();
-      }, 1000);
+      }, AGENT_LOADER_COMPLETION_DELAY_MS);
       return () => clearTimeout(timer);
     }
-  }, [trip, onComplete]);
+  }, [elapsedMs, trip, onComplete]);
 
-  // Message cycling logic
   useEffect(() => {
+    const targetProgress = getAgentLoaderProgress(elapsedMs, !!trip);
+    
+    const animateProgress = () => {
+      setDisplayProgress(prev => {
+        const diff = targetProgress - prev;
+        if (Math.abs(diff) < 0.5) {
+          return targetProgress;
+        }
+        return prev + diff * 0.15;
+      });
+    };
+    
+    const timer = setInterval(animateProgress, 16);
+    return () => clearInterval(timer);
+  }, [elapsedMs, trip]);
+
+  useEffect(() => {
+    const messageInterval = AGENT_LOADER_MIN_DURATION_MS / messages.length;
+    
     const timer = setInterval(() => {
-      setMessageIndex(prev => (prev + 1) % messages.length);
-    }, 2500);
+      setMessageIndex(prev => {
+        if (prev < messages.length - 1) {
+          return prev + 1;
+        }
+        return prev;
+      });
+    }, messageInterval);
 
     return () => clearInterval(timer);
   }, [messages.length]);
+
+  const currentMessage = showReadyState
+    ? { text: '行程已准备完成，正在为您展开结果...', icon: <Compass className="text-emerald-400" size={32} /> }
+    : messages[messageIndex];
 
   if (isError) {
     return (
@@ -92,7 +147,6 @@ export function AgentLoader({ onComplete, tripId }: AgentLoaderProps) {
   return (
     <div className="flex flex-col items-center justify-center py-32 w-full min-h-[400px]">
       <div className="relative mb-12 flex items-center justify-center">
-        {/* Animated rings */}
         <motion.div 
           animate={{ rotate: 360 }}
           transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
@@ -104,7 +158,6 @@ export function AgentLoader({ onComplete, tripId }: AgentLoaderProps) {
           className="absolute inset-0 w-40 h-40 rounded-full border-[2px] border-dotted border-gray-300"
         />
         
-        {/* Core pulsing circle */}
         <motion.div 
           animate={{ scale: [1, 1.1, 1] }}
           transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
@@ -112,13 +165,13 @@ export function AgentLoader({ onComplete, tripId }: AgentLoaderProps) {
         >
           <AnimatePresence mode="wait">
             <motion.div
-              key={messageIndex}
+              key={showReadyState ? 'ready' : messageIndex}
               initial={{ opacity: 0, scale: 0.5, rotate: -45 }}
               animate={{ opacity: 1, scale: 1, rotate: 0 }}
               exit={{ opacity: 0, scale: 0.5, rotate: 45 }}
               transition={{ duration: 0.3 }}
             >
-              {messages[messageIndex].icon}
+              {currentMessage.icon}
             </motion.div>
           </AnimatePresence>
         </motion.div>
@@ -127,29 +180,28 @@ export function AgentLoader({ onComplete, tripId }: AgentLoaderProps) {
       <div className="h-12 overflow-hidden flex items-center justify-center relative">
         <AnimatePresence mode="wait">
           <motion.div
-            key={messageIndex}
+            key={showReadyState ? 'ready-text' : messageIndex}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.4, ease: "easeOut" }}
             className="text-lg md:text-xl font-medium text-gray-700 tracking-tight text-center"
           >
-            {messages[messageIndex].text}
+            {currentMessage.text}
           </motion.div>
         </AnimatePresence>
       </div>
 
-      {/* Progress bar */}
       <div className="w-64 h-1.5 bg-gray-100 rounded-full mt-10 overflow-hidden">
         <motion.div 
           className="h-full bg-[#1D1D1F] rounded-full"
-          initial={{ width: "0%" }}
-          animate={{ width: `${Math.min(100, ((messageIndex + 1) / messages.length) * 100)}%` }}
-          transition={{ duration: 0.5 }}
+          initial={{ width: "3%" }}
+          animate={{ width: `${Math.round(displayProgress)}%` }}
+          transition={{ duration: 0.1, ease: "linear" }}
         />
       </div>
       
-      {!tripId && (
+      {!tripId && !showReadyState && (
         <p className="mt-4 text-[10px] font-bold text-gray-300 uppercase tracking-widest">
           正在初始化生成任务...
         </p>

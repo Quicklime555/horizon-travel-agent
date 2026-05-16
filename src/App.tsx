@@ -31,7 +31,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-surface">
-      {!isLanding && !isLogin && (
+      {!isLogin && (
         <Navbar showSearch={location.pathname === '/history' || location.pathname === '/admin'} />
       )}
 
@@ -39,17 +39,17 @@ export default function App() {
         <div className={isLanding || isLogin ? "w-full" : "w-full max-w-[1240px] mx-auto"}>
           <Routes>
             <Route path="/" element={<LandingPage onStart={() => navigate('/planner')} />} />
-            <Route path="/login" element={isDemoMode ? <Navigate to="/planner" replace /> : <LoginPage />} />
+            <Route path="/login" element={<LoginPage />} />
             
             <Route path="/planner" element={
               <PlannerPage onGenerate={(id) => navigate(`/trips/${id}`)} />
             } />
             
-            <Route path="/history" element={isDemoMode ? <Navigate to="/planner" replace /> : (
+            <Route path="/history" element={
               <RequireAuth>
                 <HistoryPage onViewTrip={(id) => navigate(`/trips/${id}`)} />
               </RequireAuth>
-            )} />
+            } />
             
             <Route path="/trips/:id" element={
               <RequireAuth>
@@ -57,13 +57,13 @@ export default function App() {
               </RequireAuth>
             } />
             
-            <Route path="/destinations" element={isDemoMode ? <Navigate to="/planner" replace /> : <DashboardPage />} />
+            <Route path="/destinations" element={<DashboardPage />} />
             
-            <Route path="/admin" element={isDemoMode ? <Navigate to="/planner" replace /> : (
+            <Route path="/admin" element={
               <RequireAuth adminOnly>
                 <DashboardPage />
               </RequireAuth>
-            )} />
+            } />
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
@@ -94,4 +94,3 @@ export default function App() {
     </div>
   );
 }
-

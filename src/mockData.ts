@@ -26,7 +26,7 @@ export const mockTrips: Trip[] = [
             type: 'attraction',
             duration: '3 小时',
             estimatedExpense: 50,
-            imageUrl: 'https://images.unsplash.com/photo-1564349683136-77e08bef1ef1?q=80&w=800&auto=format&fit=crop'
+            imageUrl: 'https://images.unsplash.com/photo-1564349683136-77e08dba1ef7?q=80&w=800&auto=format&fit=crop'
           },
           {
             id: 'act-2',
@@ -105,3 +105,94 @@ export const mockTrips: Trip[] = [
     budget: { total: 2000, accommodation: 800, dining: 400, transport: 500 }
   }
 ];
+
+export const DEMO_TRIP_ID = 'demo-chengdu-001';
+
+export const PLANNER_DEMO_PRESET = {
+  departure: '上海',
+  destination: '成都',
+  travelersCount: 2,
+  budgetLevel: 'standard' as const,
+  selectedDate: '2026-06-01',
+  duration: 4,
+};
+
+export const PLANNER_DEMO_FIELD_EXAMPLES = {
+  departure: [PLANNER_DEMO_PRESET.departure],
+  destination: [PLANNER_DEMO_PRESET.destination],
+  selectedDate: [PLANNER_DEMO_PRESET.selectedDate],
+  duration: [`${PLANNER_DEMO_PRESET.duration} 天`],
+  budgetLevel: ['舒适型'],
+  travelersCount: ['两人'],
+};
+
+export const DEMO_DASHBOARD_STATS = {
+  todayCount: '28',
+  todayChange: '+18%',
+  successRate: '98.2%',
+  successChange: '+2.1%',
+  failureRate: '1.8%',
+  failureChange: '-0.6%',
+  popularDestinations: [
+    { name: '成都', value: 16, growth: '+24%', image: mockTrips[0]?.imageUrl },
+    { name: '京都', value: 11, growth: '+12%', image: mockTrips[1]?.imageUrl },
+    { name: '巴黎', value: 9, growth: '+9%', image: mockTrips[2]?.imageUrl },
+    { name: '巴塔哥尼亚', value: 6, growth: '+5%', image: mockTrips[3]?.imageUrl },
+  ],
+};
+
+export const DEMO_DASHBOARD_RUNS = [
+  { id: 'run-demo-001', type: 'mock itinerary', status: 'completed', time: '30 秒前', prompt: '上海到成都双人舒适型 4 日行程', stack: '' },
+  { id: 'run-demo-002', type: 'destination trend', status: 'completed', time: '2 分钟前', prompt: '成都热门目的地聚合', stack: '' },
+  { id: 'run-demo-003', type: 'feedback sync', status: 'completed', time: '5 分钟前', prompt: '用户反馈摘要生成', stack: '' },
+];
+
+export const DEMO_DASHBOARD_FEEDBACKS = [
+  { id: 'fb-demo-001', user: '评委 A', date: '今天', rating: 5, comment: '成都案例展示完整，生成速度快，适合比赛演示。', trip_plan_id: DEMO_TRIP_ID },
+  { id: 'fb-demo-002', user: '评委 B', date: '今天', rating: 4, comment: '规划页示例填写很直观，能快速进入结果页。', trip_plan_id: DEMO_TRIP_ID },
+  { id: 'fb-demo-003', user: '评委 C', date: '今天', rating: 5, comment: '热门目的地和历史行程都能直接打开，体验顺畅。', trip_plan_id: 'trip-2' },
+];
+
+export function getDemoHistoryTrips(): Trip[] {
+  return mockTrips.map((trip, index) => {
+    if (index === 0) {
+      return {
+        ...trip,
+        origin: PLANNER_DEMO_PRESET.departure,
+        destination: PLANNER_DEMO_PRESET.destination,
+      };
+    }
+
+    return { ...trip };
+  });
+}
+
+export function getDemoTripById(id: string): Trip | null {
+  if (id !== DEMO_TRIP_ID) return null;
+
+  const base = mockTrips[0];
+  if (!base) return null;
+
+  const startDate = PLANNER_DEMO_PRESET.selectedDate;
+  const startDateObj = new Date(startDate);
+  const endDateObj = new Date(startDateObj);
+  endDateObj.setDate(startDateObj.getDate() + (PLANNER_DEMO_PRESET.duration - 1));
+  const endDate = endDateObj.toISOString().split('T')[0];
+
+  return {
+    ...base,
+    id: DEMO_TRIP_ID,
+    status: 'completed',
+    startDate,
+    endDate,
+    origin: PLANNER_DEMO_PRESET.departure,
+    destination: PLANNER_DEMO_PRESET.destination,
+    travelers: PLANNER_DEMO_PRESET.travelersCount,
+    days: (base.days ?? []).map((day) => {
+      const dateObj = new Date(startDateObj);
+      dateObj.setDate(startDateObj.getDate() + (day.dayNumber - 1));
+      const date = dateObj.toISOString().split('T')[0];
+      return { ...day, date };
+    }),
+  };
+}

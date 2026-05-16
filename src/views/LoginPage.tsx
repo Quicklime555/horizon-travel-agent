@@ -4,8 +4,12 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Mail, Lock, ArrowRight, Github, Chrome, Loader2, Globe, MessageSquare } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import { getDemoEntryConfig } from '../contexts/demoAuth';
 
 export default function LoginPage() {
+  const demoEntry = getDemoEntryConfig(import.meta.env);
+  const { signInAsGuest } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -23,6 +27,7 @@ export default function LoginPage() {
     if (msg.includes('User already registered')) return '该邮箱已被注册';
     if (msg.includes('Password should be at least')) return '密码长度不能少于6位';
     if (msg.includes('Rate limit')) return '请求过于频繁，请稍后再试';
+    if (msg.includes('Demo account is not configured')) return '演示账号暂未配置，请联系管理员';
     return '登录失败，请稍后重试';
   };
 
@@ -58,6 +63,20 @@ export default function LoginPage() {
     } catch (err) {
       console.error('Failed to get WeChat URL:', err);
       setError('无法连接到微信登录服务');
+    }
+  };
+
+  const handleGuestLogin = async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      signInAsGuest();
+      navigate(from, { replace: true });
+    } catch (err: any) {
+      setError(translateAuthError(err));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -140,6 +159,24 @@ export default function LoginPage() {
                 </>
               )}
             </button>
+
+            {isLogin && demoEntry.guestLoginEnabled && (
+              <button
+                type="button"
+                onClick={handleGuestLogin}
+                disabled={loading}
+                className="w-full border border-gray-200 bg-white text-on-surface py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-gray-50 transition-all active:scale-[0.98] disabled:opacity-70 disabled:active:scale-100"
+              >
+                {loading ? (
+                  <Loader2 className="animate-spin" size={20} />
+                ) : (
+                  <>
+                    游客登录
+                    <ArrowRight size={18} />
+                  </>
+                )}
+              </button>
+            )}
           </form>
 
           <div className="mt-8 flex flex-col items-center gap-6">

@@ -11,10 +11,13 @@ import { useMutation } from '@tanstack/react-query';
 import tripService, { TripPlanRequest } from '../services/tripService';
 
 import { AgentLoader } from '../components/AgentLoader';
+import { PLANNER_DEMO_FIELD_EXAMPLES, PLANNER_DEMO_PRESET } from '../mockData';
 
 interface PlannerPageProps {
   onGenerate: (id: string) => void;
 }
+
+type ExampleField = 'departure' | 'destination' | 'selectedDate' | 'duration' | 'budgetLevel' | 'travelersCount';
 
 export function PlannerPage({ onGenerate }: PlannerPageProps) {
   const [step, setStep] = useState(1);
@@ -34,9 +37,52 @@ export function PlannerPage({ onGenerate }: PlannerPageProps) {
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [generatedTripId, setGeneratedTripId] = useState<string | null>(null);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+  const [activeExample, setActiveExample] = useState<ExampleField | null>(null);
   
-  const { user, isDemoMode } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
+
+  const applyExample = (key: typeof activeExample) => {
+    if (!key) return;
+
+    if (key === 'departure') {
+      setDeparture(PLANNER_DEMO_PRESET.departure);
+    } else if (key === 'destination') {
+      setDestination(PLANNER_DEMO_PRESET.destination);
+    } else if (key === 'selectedDate') {
+      setSelectedDate(PLANNER_DEMO_PRESET.selectedDate);
+    } else if (key === 'duration') {
+      setDuration(PLANNER_DEMO_PRESET.duration);
+    } else if (key === 'budgetLevel') {
+      setBudgetLevel(PLANNER_DEMO_PRESET.budgetLevel);
+    } else if (key === 'travelersCount') {
+      setTravelersCount(PLANNER_DEMO_PRESET.travelersCount);
+    }
+
+    setActiveExample(null);
+  };
+
+  const renderExamplePopover = (field: ExampleField, label: string) => {
+    if (activeExample !== field) return null;
+
+    return (
+      <div className="absolute left-0 top-full w-full min-w-[220px] pt-3 z-30">
+        <div className="rounded-2xl border border-gray-200 bg-white shadow-bento p-2 pointer-events-auto">
+          {PLANNER_DEMO_FIELD_EXAMPLES[field].map((example) => (
+            <button
+              key={example}
+              type="button"
+              onClick={() => applyExample(field)}
+              className="w-full text-left px-3 py-2 rounded-xl hover:bg-gray-50 transition-colors"
+            >
+              <div className="text-sm font-semibold text-[#1D1D1F]">{example}</div>
+              <div className="text-xs font-medium text-gray-400">{label}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  };
 
   const planMutation = useMutation({
     mutationFn: (data: TripPlanRequest) => tripService.planTrip(data),
@@ -95,10 +141,6 @@ export function PlannerPage({ onGenerate }: PlannerPageProps) {
 
   const handleStartGeneration = () => {
     if (!user) {
-      if (isDemoMode) {
-        alert('Demo 账号尚未就绪，请稍后刷新重试。');
-        return;
-      }
       setShowLoginPrompt(true);
       return;
     }
@@ -206,7 +248,11 @@ export function PlannerPage({ onGenerate }: PlannerPageProps) {
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1">
                     出发地 <span className="text-red-400">*</span>
                   </label>
-                  <div className="relative group">
+                  <div
+                    className="relative group"
+                    onMouseEnter={() => setActiveExample('departure')}
+                    onMouseLeave={() => setActiveExample(null)}
+                  >
                     <Plane className={cn("absolute left-5 top-1/2 -translate-y-1/2 transition-colors", departure ? "text-black" : "text-gray-300 group-focus-within:text-black")} size={20} />
                     <input 
                       value={departure}
@@ -214,13 +260,18 @@ export function PlannerPage({ onGenerate }: PlannerPageProps) {
                       className="w-full pl-14 pr-6 py-4.5 bg-gray-50 rounded-2xl border border-transparent text-[#1D1D1F] outline-none focus:ring-2 focus:ring-black/5 focus:bg-white focus:border-gray-300 transition-all font-medium" 
                       placeholder="例如：上海 (PVG)" 
                     />
+                    {renderExamplePopover('departure', '出发地')}
                   </div>
                 </div>
                 <div className="flex flex-col gap-3">
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1">
                     目的地 <span className="text-red-400">*</span>
                   </label>
-                  <div className="relative group">
+                  <div
+                    className="relative group"
+                    onMouseEnter={() => setActiveExample('destination')}
+                    onMouseLeave={() => setActiveExample(null)}
+                  >
                     <MapPin className={cn("absolute left-5 top-1/2 -translate-y-1/2 transition-colors", destination ? "text-black" : "text-gray-300 group-focus-within:text-black")} size={20} />
                     <input 
                       value={destination}
@@ -228,6 +279,7 @@ export function PlannerPage({ onGenerate }: PlannerPageProps) {
                       className="w-full pl-14 pr-6 py-4.5 bg-gray-50 rounded-2xl border border-transparent text-[#1D1D1F] outline-none focus:ring-2 focus:ring-black/5 focus:bg-white focus:border-gray-300 transition-all font-medium" 
                       placeholder="例如：成都" 
                     />
+                    {renderExamplePopover('destination', '目的地')}
                   </div>
                   {(destination.includes('，') || destination.includes(',') || destination.includes('和')) && (
                     <div className="text-amber-500 text-xs flex items-center gap-1.5 font-medium animate-in fade-in slide-in-from-top-1">
@@ -239,19 +291,30 @@ export function PlannerPage({ onGenerate }: PlannerPageProps) {
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1">
                     出发日期 <span className="text-red-400">*</span>
                   </label>
-                  <DatePicker 
-                    value={selectedDate} 
-                    onChange={setSelectedDate} 
-                    placeholder="选择出发日期" 
-                  />
+                  <div
+                    className="relative"
+                    onMouseEnter={() => setActiveExample('selectedDate')}
+                    onMouseLeave={() => setActiveExample(null)}
+                  >
+                    <DatePicker 
+                      value={selectedDate} 
+                      onChange={setSelectedDate} 
+                      placeholder="选择出发日期" 
+                    />
+                    {renderExamplePopover('selectedDate', '出发日期')}
+                  </div>
                 </div>
 
                 <div className="flex flex-col gap-3">
-                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1">
                     游玩天数 <span className="text-red-400">*</span>
                   </label>
                   <div className="flex flex-col gap-2">
-                    <div className="flex items-center gap-6 bg-gray-50 p-4 rounded-2xl border border-transparent hover:border-gray-200 transition-all">
+                    <div
+                      className="relative flex items-center gap-6 bg-gray-50 p-4 rounded-2xl border border-transparent hover:border-gray-200 transition-all"
+                      onMouseEnter={() => setActiveExample('duration')}
+                      onMouseLeave={() => setActiveExample(null)}
+                    >
                       <CalendarIcon className="text-gray-400 ml-2" size={20} />
                       <div className="flex items-center gap-4">
                         <button 
@@ -269,6 +332,7 @@ export function PlannerPage({ onGenerate }: PlannerPageProps) {
                         </button>
                       </div>
                       <span className="text-sm text-gray-400 font-medium ml-2">天</span>
+                      {renderExamplePopover('duration', '游玩天数')}
                     </div>
                     {(duration < 3 || duration > 7) && (
                       <div className="text-amber-500 text-xs flex items-center gap-1.5 font-medium animate-in fade-in slide-in-from-top-1">
@@ -282,24 +346,35 @@ export function PlannerPage({ onGenerate }: PlannerPageProps) {
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1">
                     预算等级 <span className="text-red-400">*</span>
                   </label>
-                  <Select 
-                    icon={<Wallet size={20} />}
-                    value={budgetLevel}
-                    onChange={setBudgetLevel}
-                    placeholder="选择您的预算"
-                    options={[
-                      { value: 'economy', label: '经济型', description: '适合精打细算的背包客' },
-                      { value: 'standard', label: '舒适型', description: '高性价比的标准旅行体验' },
-                      { value: 'luxury', label: '豪华型', description: '享受奢华贴心的优质之旅' },
-                    ]}
-                  />
+                  <div
+                    className="relative"
+                    onMouseEnter={() => setActiveExample('budgetLevel')}
+                    onMouseLeave={() => setActiveExample(null)}
+                  >
+                    <Select 
+                      icon={<Wallet size={20} />}
+                      value={budgetLevel}
+                      onChange={setBudgetLevel}
+                      placeholder="选择您的预算"
+                      options={[
+                        { value: 'economy', label: '经济型', description: '适合精打细算的背包客' },
+                        { value: 'standard', label: '舒适型', description: '高性价比的标准旅行体验' },
+                        { value: 'luxury', label: '豪华型', description: '享受奢华贴心的优质之旅' },
+                      ]}
+                    />
+                    {renderExamplePopover('budgetLevel', '预算等级')}
+                  </div>
                 </div>
 
                 <div className="flex flex-col gap-3">
-                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1">
                     旅行人数 <span className="text-red-400">*</span>
                   </label>
-                  <div className="flex items-center gap-6 bg-gray-50 p-4 rounded-2xl border border-transparent hover:border-gray-200 transition-all">
+                  <div
+                    className="relative flex items-center gap-6 bg-gray-50 p-4 rounded-2xl border border-transparent hover:border-gray-200 transition-all"
+                    onMouseEnter={() => setActiveExample('travelersCount')}
+                    onMouseLeave={() => setActiveExample(null)}
+                  >
                     <Users className="text-gray-400 ml-2" size={20} />
                     <div className="flex items-center gap-4">
                       <button 
@@ -317,6 +392,7 @@ export function PlannerPage({ onGenerate }: PlannerPageProps) {
                       </button>
                     </div>
                     <span className="text-sm text-gray-400 font-medium ml-2">人</span>
+                    {renderExamplePopover('travelersCount', '旅行人数')}
                   </div>
                 </div>
               </div>
@@ -534,7 +610,7 @@ export function PlannerPage({ onGenerate }: PlannerPageProps) {
 
       {/* Login Prompt Modal */}
       <AnimatePresence>
-        {showLoginPrompt && !isDemoMode && (
+        {showLoginPrompt && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
             <motion.div 
               initial={{ opacity: 0 }}
