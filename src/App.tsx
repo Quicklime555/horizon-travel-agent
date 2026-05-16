@@ -1,117 +1,97 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { useState } from 'react';
-import { Layout as LayoutIcon, Settings } from 'lucide-react';
+import { Layout as LayoutIcon, LogOut, ShieldCheck } from 'lucide-react';
 import { Navbar } from './components/Navbar';
 import { LandingPage } from './views/LandingPage';
 import { PlannerPage } from './views/PlannerPage';
 import { HistoryPage } from './views/HistoryPage';
 import { ItineraryPage } from './views/ItineraryPage';
 import { DashboardPage } from './views/DashboardPage';
+import LoginPage from './views/LoginPage';
 import { mockTrips } from './mockData';
 import { motion, AnimatePresence } from 'motion/react';
-import { cn } from './lib/utils';
-
-type View = 'landing' | 'planner' | 'history' | 'destinations' | 'itinerary' | 'dashboard';
+import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
+import { useAuth } from './contexts/AuthContext';
+import { RequireAuth } from './components/RequireAuth';
 
 export default function App() {
-  const [currentView, setCurrentView] = useState<View>('landing');
-  const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
-  const [userRole, setUserRole] = useState<'user' | 'admin'>('user');
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { user, userRole, loading, signOut, isDemoMode } = useAuth();
 
-  const navigateTo = (view: View) => {
-    // Basic View Guard
-    if (view === 'dashboard' && userRole !== 'admin') {
-      alert('权限不足：仅管理员可访问后台');
-      return;
-    }
+  if (loading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-surface">
+        <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+      </div>
+    );
+  }
 
-    setCurrentView(view);
-    if (view !== 'itinerary') setSelectedTripId(null);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const viewTrip = (id: string) => {
-    setSelectedTripId(id);
-    setCurrentView('itinerary');
-  };
-
-  const activeTrip = mockTrips.find(t => t.id === selectedTripId) || mockTrips[0];
+  const isLanding = location.pathname === '/';
+  const isLogin = location.pathname === '/login';
 
   return (
     <div className="min-h-screen bg-surface">
-      {currentView !== 'landing' && (
-        <Navbar 
-          activeTab={currentView as any} 
-          onNavigate={navigateTo} 
-          showSearch={currentView === 'history' || currentView === 'dashboard'} 
-          userRole={userRole}
-        />
+      {!isLanding && !isLogin && (
+        <Navbar showSearch={location.pathname === '/history' || location.pathname === '/admin'} />
       )}
 
-      <main className={currentView === 'landing' ? '' : 'pt-36 pb-20 px-8 flex flex-col items-center'}>
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={currentView + (selectedTripId || '')}
-            className={currentView === 'landing' ? "w-full" : "w-full max-w-[1240px] mx-auto"}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.3, ease: 'easeInOut' }}
-          >
-            {currentView === 'landing' && (
-              <LandingPage onStart={() => navigateTo('planner')} />
-            )}
-            {currentView === 'planner' && (
-              <PlannerPage onGenerate={() => viewTrip('trip-1')} />
-            )}
-            {currentView === 'history' && (
-              <HistoryPage onViewTrip={viewTrip} />
-            )}
-            {currentView === 'itinerary' && (
-              <ItineraryPage trip={activeTrip} />
-            )}
-            {currentView === 'dashboard' || currentView === 'destinations' ? (
-              <DashboardPage />
-            ) : null}
-          </motion.div>
-        </AnimatePresence>
+      <main className={isLanding || isLogin ? '' : 'pt-36 pb-20 px-8 flex flex-col items-center'}>
+        <div className={isLanding || isLogin ? "w-full" : "w-full max-w-[1240px] mx-auto"}>
+          <Routes>
+            <Route path="/" element={<LandingPage onStart={() => navigate('/planner')} />} />
+            <Route path="/login" element={isDemoMode ? <Navigate to="/planner" replace /> : <LoginPage />} />
+            
+            <Route path="/planner" element={
+              <PlannerPage onGenerate={(id) => navigate(`/trips/${id}`)} />
+            } />
+            
+            <Route path="/history" element={isDemoMode ? <Navigate to="/planner" replace /> : (
+              <RequireAuth>
+                <HistoryPage onViewTrip={(id) => navigate(`/trips/${id}`)} />
+              </RequireAuth>
+            )} />
+            
+            <Route path="/trips/:id" element={
+              <RequireAuth>
+                <ItineraryPage />
+              </RequireAuth>
+            } />
+            
+            <Route path="/destinations" element={isDemoMode ? <Navigate to="/planner" replace /> : <DashboardPage />} />
+            
+            <Route path="/admin" element={isDemoMode ? <Navigate to="/planner" replace /> : (
+              <RequireAuth adminOnly>
+                <DashboardPage />
+              </RequireAuth>
+            )} />
+
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </div>
       </main>
 
-      {/* Floating Role & Dashboard Toggle for demo purposes */}
-      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-3">
-        <button 
-          onClick={() => setUserRole(userRole === 'admin' ? 'user' : 'admin')}
-          className={cn(
-            "p-3 rounded-full shadow-2xl transition-all active:scale-90 flex items-center gap-2 px-4 text-xs font-bold uppercase tracking-wider",
-            userRole === 'admin' ? "bg-indigo-600 text-white" : "bg-white text-gray-500 border border-gray-200"
-          )}
-        >
-          <Settings size={16} />
-          {userRole === 'admin' ? '管理员模式' : '切换为管理员'}
-        </button>
-        
-        {userRole === 'admin' && (
-          <button 
-            onClick={() => navigateTo(currentView === 'dashboard' ? 'landing' : 'dashboard')}
-            className="bg-on-surface text-white p-3 rounded-full shadow-2xl hover:bg-primary transition-all active:scale-90"
-            title="Toggle Admin View"
-          >
-            <LayoutIcon size={20} />
-          </button>
-        )}
-      </div>
+      {/* Floating Role & Status - for development/demo only */}
+      {user && !isDemoMode && (
+        <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-3">
+          <div className="bg-white/90 backdrop-blur-md border border-gray-100 rounded-2xl p-4 shadow-2xl flex items-center gap-4">
+            <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+              {userRole === 'admin' ? <ShieldCheck size={20} /> : <LayoutIcon size={20} />}
+            </div>
+            <div>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">当前角色</p>
+              <p className="text-sm font-bold text-on-surface">{userRole === 'admin' ? '系统管理员' : '普通用户'}</p>
+            </div>
+            <button 
+              onClick={() => signOut()}
+              className="ml-4 p-2 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-lg transition-colors"
+              title="退出登录"
+            >
+              <LogOut size={18} />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-
-
 

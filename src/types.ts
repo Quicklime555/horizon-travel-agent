@@ -1,4 +1,4 @@
-export type TripStatus = 'saved' | 'exported' | 'draft';
+export type TripStatus = 'saved' | 'exported' | 'draft' | 'pending' | 'processing' | 'generating' | 'completed' | 'failed';
 
 export interface Activity {
   id: string;
@@ -39,4 +39,6 @@ export interface Trip {
     dining: number;
     transport: number;
   };
+  destination?: string;
+  origin?: string;
 }

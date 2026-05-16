@@ -39,11 +39,17 @@ export function TripCard({ trip, onView }: TripCardProps) {
     }, 2000);
   };
 
-  const statusConfig = {
+  const statusConfig: Record<string, { label: string; color: string }> = {
     exported: { label: '已导出', color: 'bg-emerald-500' },
     saved: { label: '已保存', color: 'bg-orange-500' },
     draft: { label: '草稿', color: 'bg-gray-400' },
+    completed: { label: '已完成', color: 'bg-emerald-500' },
+    pending: { label: '待处理', color: 'bg-amber-400' },
+    processing: { label: '生成中', color: 'bg-blue-400' },
+    failed: { label: '失败', color: 'bg-red-500' },
   };
+
+  const currentStatus = statusConfig[trip.status] || { label: trip.status, color: 'bg-gray-200' };
 
   return (
     <>
@@ -61,7 +67,7 @@ export function TripCard({ trip, onView }: TripCardProps) {
         {trip.imageUrl ? (
           <img 
             src={trip.imageUrl} 
-            alt={trip.title} 
+            alt={trip.title || trip.destination} 
             referrerPolicy="no-referrer"
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
           />
@@ -71,14 +77,14 @@ export function TripCard({ trip, onView }: TripCardProps) {
           </div>
         )}
         <div className="absolute top-6 right-6 bg-white/90 backdrop-blur px-4 py-1.5 rounded-full flex items-center gap-2 shadow-sm border border-gray-100 z-10">
-          <span className={cn("w-2 h-2 rounded-full", isSaved ? "bg-emerald-500" : statusConfig[trip.status].color)} />
-          <span className="text-[10px] font-bold text-[#1D1D1F] uppercase tracking-widest">{isSaved ? "已保存" : statusConfig[trip.status].label}</span>
+          <span className={cn("w-2 h-2 rounded-full", isSaved ? "bg-emerald-500" : currentStatus.color)} />
+          <span className="text-[10px] font-bold text-[#1D1D1F] uppercase tracking-widest">{isSaved ? "已保存" : currentStatus.label}</span>
         </div>
       </div>
 
       <div className="p-8 flex-grow flex flex-col">
         <div className="mb-6">
-          <h3 className="text-2xl font-semibold text-[#1D1D1F] mb-2 tracking-tight line-clamp-1">{trip.title}</h3>
+          <h3 className="text-2xl font-semibold text-[#1D1D1F] mb-2 tracking-tight line-clamp-1">{trip.title || `${trip.destination}之旅`}</h3>
           <div className="flex items-center gap-2 text-gray-400 text-sm font-medium">
             <Calendar size={16} />
             <span>{trip.startDate} {trip.endDate ? `- ${trip.endDate}` : ''}</span>

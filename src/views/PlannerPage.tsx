@@ -1,15 +1,19 @@
 import { useState } from 'react';
+import { Plane, MapPin, Calendar as CalendarIcon, Wallet, Sparkles, Utensils, Landmark, TreePine, Mountain, Palmtree, Palette, Infinity, Brain, Zap, ShoppingBag, Music, Camera, Users, Heart, Check, Loader2, LogIn, X } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plane, MapPin, Calendar as CalendarIcon, Wallet, Sparkles, Utensils, Landmark, TreePine, Mountain, Palmtree, Palette, Infinity, Brain, Zap, ShoppingBag, Music, Camera, Users, Heart, Check } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { DatePicker } from '../components/ui/DatePicker';
 import { Select } from '../components/ui/Select';
 import { cn } from '@/src/lib/utils';
+import { useMutation } from '@tanstack/react-query';
+import tripService, { TripPlanRequest } from '../services/tripService';
 
 import { AgentLoader } from '../components/AgentLoader';
 
 interface PlannerPageProps {
-  onGenerate: () => void;
+  onGenerate: (id: string) => void;
 }
 
 export function PlannerPage({ onGenerate }: PlannerPageProps) {
@@ -28,6 +32,26 @@ export function PlannerPage({ onGenerate }: PlannerPageProps) {
   });
   const [selectedPace, setSelectedPace] = useState<string>('standard');
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
+  const [generatedTripId, setGeneratedTripId] = useState<string | null>(null);
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+  
+  const { user, isDemoMode } = useAuth();
+  const navigate = useNavigate();
+
+  const planMutation = useMutation({
+    mutationFn: (data: TripPlanRequest) => tripService.planTrip(data),
+    onSuccess: async (data) => {
+      setGeneratedTripId(data.id);
+      // The actual polling happens inside AgentLoader or we can do it here.
+      // For now, we'll let AgentLoader handle the visual progress, 
+      // and then it will call onComplete where we pass the ID.
+    },
+    onError: (error) => {
+      console.error("Plan creation failed:", error);
+      setIsGenerating(false);
+      alert("创建计划失败，请稍后重试");
+    }
+  });
 
   const steps = [
     { id: 1, label: '基本信息' },
@@ -37,7 +61,6 @@ export function PlannerPage({ onGenerate }: PlannerPageProps) {
   ];
 
   const interests = [
-    // ... items stay same
     { id: 'food', label: '美食达人', icon: <Utensils size={16} /> },
     { id: 'history', label: '人文历史', icon: <Landmark size={16} /> },
     { id: 'nature', label: '自然风光', icon: <TreePine size={16} /> },
@@ -68,6 +91,38 @@ export function PlannerPage({ onGenerate }: PlannerPageProps) {
       return selectedInterests.length > 0;
     }
     return true;
+  };
+
+  const handleStartGeneration = () => {
+    if (!user) {
+      if (isDemoMode) {
+        alert('Demo 账号尚未就绪，请稍后刷新重试。');
+        return;
+      }
+      setShowLoginPrompt(true);
+      return;
+    }
+
+    setIsGenerating(true);
+    
+    // Construct the end date based on duration
+    const startDateObj = new Date(selectedDate);
+    const endDateObj = new Date(startDateObj);
+    endDateObj.setDate(startDateObj.getDate() + duration);
+    const endDate = endDateObj.toISOString().split('T')[0];
+
+    // Budget numeric value (mocked or simplified)
+    const budgetMap: Record<string, number> = { economy: 3000, standard: 8000, luxury: 20000 };
+
+    planMutation.mutate({
+      origin: departure,
+      destination: destination,
+      startDate: selectedDate,
+      endDate: endDate,
+      budget: (budgetMap[budgetLevel] || 5000) * travelersCount,
+      preferences: selectedInterests,
+      pace: selectedPace as any,
+    });
   };
 
   const paces = [
@@ -129,7 +184,10 @@ export function PlannerPage({ onGenerate }: PlannerPageProps) {
             transition={{ duration: 0.4 }}
             className="bg-white rounded-[32px] shadow-bento border border-gray-200 mt-10"
           >
-            <AgentLoader onComplete={onGenerate} />
+            <AgentLoader 
+              tripId={generatedTripId || undefined} 
+              onComplete={() => generatedTripId && onGenerate(generatedTripId)} 
+            />
           </motion.div>
         ) : (
           <motion.div
@@ -291,7 +349,7 @@ export function PlannerPage({ onGenerate }: PlannerPageProps) {
                            </span>
                            {travelersCount > 1 && (
                              <span className="text-[10px] font-bold text-blue-500 bg-blue-50 px-2 py-0.5 rounded uppercase">
-                               约 ${(allocation[item.key as keyof typeof allocation] * 20 / travelersCount).toFixed(0)}/人
+                               约 ¥{(allocation[item.key as keyof typeof allocation] * 20 / travelersCount).toFixed(0)}/人
                              </span>
                            )}
                          </div>
@@ -450,16 +508,16 @@ export function PlannerPage({ onGenerate }: PlannerPageProps) {
                  </Button>
               ) : (
                  <Button 
-                   onClick={() => setIsGenerating(true)} 
+                   onClick={handleStartGeneration} 
                    variant="secondary" 
                    size="lg" 
                    className={cn(
                      "rounded-full shadow-lg gap-2 transition-all duration-300",
-                     !isStepValid() ? "opacity-30 cursor-not-allowed" : ""
+                     !isStepValid() || planMutation.isPending ? "opacity-30 cursor-not-allowed" : ""
                    )}
-                   disabled={!isStepValid()}
+                   disabled={!isStepValid() || planMutation.isPending}
                  >
-                    <Sparkles size={20} />
+                    {planMutation.isPending ? <Loader2 className="animate-spin" size={20} /> : <Sparkles size={20} />}
                     生成我的行程
                  </Button>
               )}
@@ -471,6 +529,67 @@ export function PlannerPage({ onGenerate }: PlannerPageProps) {
             </div>
           </div>
         </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Login Prompt Modal */}
+      <AnimatePresence>
+        {showLoginPrompt && !isDemoMode && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowLoginPrompt(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-md bg-white rounded-[32px] p-10 shadow-2xl overflow-hidden"
+            >
+              <button 
+                onClick={() => setShowLoginPrompt(false)}
+                className="absolute top-6 right-6 p-2 text-gray-400 hover:text-black transition-colors"
+              >
+                <X size={20} />
+              </button>
+
+              <div className="flex flex-col items-center text-center">
+                <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center text-primary mb-6">
+                  <LogIn size={32} />
+                </div>
+                <h3 className="text-2xl font-bold text-on-surface mb-3">登录后开启智能规划</h3>
+                <p className="text-gray-500 mb-10 text-sm leading-relaxed">
+                  为了保存您的行程并提供更精准的 AI 建议，请登录或注册您的账号。只需几秒钟即可完成。
+                </p>
+                
+                <div className="flex flex-col w-full gap-3">
+                  <Button 
+                    variant="primary" 
+                    size="lg" 
+                    className="w-full rounded-2xl font-bold"
+                    onClick={() => navigate('/login', { state: { from: { pathname: '/planner' } } })}
+                  >
+                    立即登录 / 注册
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="lg" 
+                    className="w-full rounded-2xl font-semibold text-gray-400"
+                    onClick={() => setShowLoginPrompt(false)}
+                  >
+                    稍后再说
+                  </Button>
+                </div>
+              </div>
+
+              {/* Decorative elements */}
+              <div className="absolute top-[-10%] left-[-10%] w-[30%] h-[30%] bg-primary/5 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute bottom-[-10%] right-[-10%] w-[30%] h-[30%] bg-indigo-500/5 rounded-full blur-3xl pointer-events-none" />
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>

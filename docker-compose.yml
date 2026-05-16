@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  # Database service
+  postgres:
+    image: postgres:15-alpine
+    container_name: horizon-db
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-horizon_travel}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Backend service (Express)
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: horizon-backend
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-horizon_travel}
+      - VITE_API_BASE_URL=http://localhost:3001
+      - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
+      - VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: npm run server
+
+  # Frontend service (Optional for dev/separate serving)
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: horizon-frontend
+    environment:
+      - VITE_API_BASE_URL=http://backend:3001
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    command: npm run dev
+
+volumes:
+  postgres_data:

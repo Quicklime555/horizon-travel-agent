@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { Star, MessageSquare, CheckCircle2, Loader2 } from 'lucide-react';
 import { Button } from './ui/Button';
 import { cn } from '../lib/utils';
+import tripService from '../services/tripService';
 
 interface FeedbackFormProps {
   tripId: string;
@@ -19,12 +20,16 @@ export function FeedbackForm({ tripId, onSubmit }: FeedbackFormProps) {
     if (rating === 0) return;
     
     setStatus('submitting');
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    setStatus('success');
-    if (onSubmit) {
-      onSubmit({ rating, comment });
+    try {
+      await tripService.submitFeedback(tripId, rating, comment);
+      setStatus('success');
+      if (onSubmit) {
+        onSubmit({ rating, comment });
+      }
+    } catch (error) {
+      console.error("Failed to submit feedback:", error);
+      setStatus('idle');
+      alert("提交反馈失败，请稍后重试");
     }
   };
 

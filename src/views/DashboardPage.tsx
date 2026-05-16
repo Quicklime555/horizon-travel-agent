@@ -1,37 +1,83 @@
 import { useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { Route, CheckCircle, AlertCircle, Clock, MessageSquare, X, Star, FileText } from 'lucide-react';
+import { Route, CheckCircle, AlertCircle, Clock, MessageSquare, X, Star, FileText, Loader2, RefreshCcw } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
+import { useQuery } from '@tanstack/react-query';
+import tripService from '../services/tripService';
 
 export function DashboardPage() {
   const [selectedError, setSelectedError] = useState<any>(null);
 
+  // Fetch admin stats
+  const { 
+    data: statsData, 
+    isLoading: isLoadingStats, 
+    isError: isErrorStats,
+    refetch: refetchStats
+  } = useQuery({
+    queryKey: ['admin-stats'],
+    queryFn: tripService.getAdminStats,
+  });
+
+  // Fetch planner runs (logs)
+  const { 
+    data: runsData, 
+    isLoading: isLoadingRuns, 
+    isError: isErrorRuns 
+  } = useQuery({
+    queryKey: ['admin-runs'],
+    queryFn: tripService.getPlannerRuns,
+  });
+
+  // Fetch all feedback
+  const { 
+    data: feedbackData, 
+    isLoading: isLoadingFeedback, 
+    isError: isErrorFeedback 
+  } = useQuery({
+    queryKey: ['admin-feedback'],
+    queryFn: tripService.getAllFeedback,
+  });
+
   const stats = [
-    { label: '今日生成计划', value: '1,245', change: '+12%', icon: <Route />, trend: 'up' },
-    { label: 'AI 成功率', value: '98.5%', change: '+0.2%', icon: <CheckCircle />, trend: 'up' },
-    { label: '故障率 (超时)', value: '1.5%', change: '-0.1%', icon: <AlertCircle />, trend: 'down', isError: true },
+    { label: '今日生成计划', value: statsData?.todayCount || '0', change: statsData?.todayChange || '+0%', icon: <Route />, trend: 'up' },
+    { label: 'AI 成功率', value: statsData?.successRate || '0%', change: statsData?.successChange || '+0%', icon: <CheckCircle />, trend: 'up' },
+    { label: '故障率 (超时)', value: statsData?.failureRate || '0%', change: statsData?.failureChange || '-0%', icon: <AlertCircle />, trend: 'down', isError: true },
   ];
 
-  const data = [
-    { name: '东京', value: 1200 },
-    { name: '巴黎', value: 850 },
-    { name: '纽约', value: 600 },
-    { name: '伦敦', value: 450 },
-  ];
+  const chartData = statsData?.popularDestinations || [];
 
-  const errors = [
-    { id: '#4921', type: 'API 请求超时', time: '10分钟前', prompt: '规划一个去巴黎的5天行程，一家三口，需要包含迪士尼乐园，预算适中...', stack: 'Error: Request timed out after 30000ms\n    at Timeout._onTimeout (node:http:123:45)\n    at listOnTimeout (node:internal/timers:569:17)\n    at processTimers (node:internal/timers:512:7)' },
-    { id: '#4920', type: '上下文超限', time: '14分钟前', prompt: '请帮我规划一个环游世界的行程，需要去100个国家...', stack: 'TokenLimitExceededError: Context length exceeded 128k tokens.\n    at validateTokenCount (model.ts:89)\n    at generatePlan (planner.ts:201)' },
-    { id: '#4918', type: 'POI 数据无效', time: '1小时前', prompt: '寻找火星上最好的餐厅', stack: 'InvalidDataError: No POI found for location "火星"\n    at fetchPOIs (maps-api.ts:55)' },
-    { id: '#4915', type: 'API 请求超时', time: '2小时前', prompt: '规划去东京的行程，重点是吃海鲜...', stack: 'Error: Upstream service unavailable\n    at fetchWithRetry (utils.ts:112)' },
-  ];
+  const errors = runsData || [];
 
-  const feedbacks = [
-    { id: 'F-102', user: '旅行达人', rating: 5, comment: '行程规划得很完美，特别是对小众景点的推荐非常有品味！', date: '刚刚' },
-    { id: 'F-101', user: '周末游玩家', rating: 4, comment: '整体很棒，如果能自动附带景点门票的预订链接就更好了。', date: '2小时前' },
-    { id: 'F-100', user: '匿名用户', rating: 2, comment: '生成的行程太紧凑了，一天跑四个地方根本来不及。', date: '5小时前' },
-  ];
+  const feedbacks = feedbackData || [];
+
+  if (isLoadingStats || isLoadingRuns || isLoadingFeedback) {
+    return (
+      <div className="flex flex-col items-center justify-center py-40 w-full">
+        <Loader2 className="w-12 h-12 animate-spin text-primary mb-6" />
+        <h2 className="text-2xl font-bold text-gray-700">正在加载管理后台...</h2>
+      </div>
+    );
+  }
+
+  if (isErrorStats || isErrorRuns || isErrorFeedback) {
+    return (
+      <div className="flex flex-col items-center justify-center py-40 w-full max-w-lg mx-auto text-center">
+        <div className="w-20 h-20 bg-red-50 text-red-500 rounded-full flex items-center justify-center mb-8">
+          <AlertCircle size={40} />
+        </div>
+        <h2 className="text-2xl font-bold text-[#1D1D1F] mb-4">加载数据失败</h2>
+        <p className="text-gray-500 mb-8">无法连接到管理后台服务，请检查网络或稍后重试。</p>
+        <button 
+          onClick={() => refetchStats()} 
+          className="px-8 py-3 bg-black text-white rounded-full font-bold shadow-lg flex items-center gap-2"
+        >
+          <RefreshCcw size={18} /> 重试
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-[1280px] mx-auto w-full px-4 md:px-8 py-8 flex flex-col gap-10">
@@ -85,27 +131,31 @@ export function DashboardPage() {
             </div>
           </div>
           <div className="flex-1 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-                <XAxis 
-                  dataKey="name" 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fill: '#94A3B8', fontSize: 12, fontWeight: 600 }}
-                />
-                <YAxis hide />
-                <Tooltip 
-                  cursor={{ fill: '#F8FAFC' }}
-                  contentStyle={{ borderRadius: '24px', border: '1px solid #E2E8F0', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.05)' }}
-                />
-                <Bar dataKey="value" radius={[12, 12, 12, 12]} barSize={50}>
-                  {data.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={index === 0 ? '#1D1D1F' : '#E2E8F0'} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            {chartData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                  <XAxis 
+                    dataKey="name" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: '#94A3B8', fontSize: 12, fontWeight: 600 }}
+                  />
+                  <YAxis hide />
+                  <Tooltip 
+                    cursor={{ fill: '#F8FAFC' }}
+                    contentStyle={{ borderRadius: '24px', border: '1px solid #E2E8F0', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.05)' }}
+                  />
+                  <Bar dataKey="value" radius={[12, 12, 12, 12]} barSize={50}>
+                    {chartData.map((_entry: any, index: number) => (
+                      <Cell key={`cell-${index}`} fill={index === 0 ? '#1D1D1F' : '#E2E8F0'} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-full text-gray-300 italic">暂无目的地数据</div>
+            )}
           </div>
         </div>
 
@@ -116,23 +166,76 @@ export function DashboardPage() {
             <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.6)]"></div>
           </div>
           <div className="flex flex-col gap-4">
-            {errors.map((error, i) => (
-              <div 
-                key={i} 
-                className="flex items-center justify-between py-4 border-b border-white/5 last:border-0 group cursor-pointer hover:bg-white/5 px-2 rounded-2xl -mx-2 transition-colors"
-                onClick={() => setSelectedError(error)}
-              >
-                <div className="flex flex-col">
-                  <span className="font-bold text-sm text-white/90">{error.id}</span>
-                  <span className="text-xs text-white/40 font-medium">{error.type}</span>
+            {errors.length > 0 ? (
+              errors.map((error: any, i: number) => (
+                <div 
+                  key={i} 
+                  className="flex items-center justify-between py-4 border-b border-white/5 last:border-0 group cursor-pointer hover:bg-white/5 px-2 rounded-2xl -mx-2 transition-colors"
+                  onClick={() => setSelectedError(error)}
+                >
+                  <div className="flex flex-col">
+                    <span className="font-bold text-sm text-white/90">{error.id}</span>
+                    <span className="text-xs text-white/40 font-medium">{error.type || error.status}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-white/20 group-hover:text-white/40 transition-colors">
+                     <Clock size={12} />
+                     <span className="text-[10px] font-bold uppercase tracking-widest">{error.time || '刚刚'}</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 text-white/20 group-hover:text-white/40 transition-colors">
-                   <Clock size={12} />
-                   <span className="text-[10px] font-bold uppercase tracking-widest">{error.time}</span>
+              ))
+            ) : (
+              <div className="text-white/20 text-center py-10">无异常日志</div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Popular Destinations Ranking */}
+      <div className="flex flex-col gap-8">
+        <div className="flex justify-between items-center">
+          <h2 className="text-2xl font-bold text-[#1D1D1F] tracking-tight">热门目的地排行</h2>
+          <button className="text-sm font-bold text-blue-600 hover:underline">查看全部</button>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {(statsData?.popularDestinations || []).map((dest: any, i: number) => (
+            <motion.div 
+              key={i}
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.1 }}
+              viewport={{ once: true }}
+              className="group relative overflow-hidden rounded-[32px] aspect-[4/5] cursor-pointer"
+            >
+              <img 
+                src={dest.image || `https://source.unsplash.com/featured/?${encodeURIComponent(dest.name)}`} 
+                alt={dest.name}
+                className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+              
+              <div className="absolute top-6 left-6">
+                <div className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/30 text-white font-bold">
+                  {i + 1}
                 </div>
               </div>
-            ))}
-          </div>
+
+              <div className="absolute bottom-8 left-8 right-8">
+                <div className="flex justify-between items-end">
+                  <div>
+                    <h3 className="text-2xl font-bold text-white mb-1">{dest.name}</h3>
+                    <div className="flex items-center gap-2 text-white/70 text-sm font-medium">
+                      <span>{dest.value || dest.count} 次生成</span>
+                      <span className="w-1 h-1 bg-white/30 rounded-full" />
+                      <span className="text-emerald-400">{dest.growth || '+0%'}</span>
+                    </div>
+                  </div>
+                  <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center opacity-0 translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300">
+                    <Star size={20} className="text-black fill-black" />
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          ))}
         </div>
       </div>
 
@@ -148,26 +251,30 @@ export function DashboardPage() {
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {feedbacks.map((fb, i) => (
-            <div key={i} className="p-6 rounded-3xl border border-gray-100 bg-gray-50/50 flex flex-col gap-4 hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
-              <div className="flex justify-between items-start">
-                <div>
-                  <div className="font-bold text-gray-900">{fb.user}</div>
-                  <div className="text-xs text-gray-500 mt-1">{fb.date}</div>
+          {feedbacks.length > 0 ? (
+            feedbacks.map((fb: any, i: number) => (
+              <div key={i} className="p-6 rounded-3xl border border-gray-100 bg-gray-50/50 flex flex-col gap-4 hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <div className="font-bold text-gray-900">{fb.user || '用户'}</div>
+                    <div className="text-xs text-gray-500 mt-1">{fb.date || '今日'}</div>
+                  </div>
+                  <div className="flex gap-0.5">
+                    {[...Array(5)].map((_, idx) => (
+                      <Star key={idx} size={14} className={idx < (fb.rating || fb.score) ? "fill-amber-400 text-amber-400" : "fill-gray-200 text-gray-200"} />
+                    ))}
+                  </div>
                 </div>
-                <div className="flex gap-0.5">
-                  {[...Array(5)].map((_, idx) => (
-                    <Star key={idx} size={14} className={idx < fb.rating ? "fill-amber-400 text-amber-400" : "fill-gray-200 text-gray-200"} />
-                  ))}
+                <p className="text-sm text-gray-600 line-clamp-3 flex-1">{fb.comment}</p>
+                <div className="pt-4 flex justify-between items-center border-t border-gray-200/60">
+                   <span className="text-xs font-bold text-gray-400">{fb.id || `#${fb.trip_plan_id?.slice(0,4)}`}</span>
+                   <button className="text-xs font-semibold text-primary hover:text-indigo-700 transition-colors">查看行程</button>
                 </div>
               </div>
-              <p className="text-sm text-gray-600 line-clamp-3 flex-1">{fb.comment}</p>
-              <div className="pt-4 flex justify-between items-center border-t border-gray-200/60">
-                 <span className="text-xs font-bold text-gray-400">{fb.id}</span>
-                 <button className="text-xs font-semibold text-primary hover:text-indigo-700 transition-colors">查看行程</button>
-              </div>
-            </div>
-          ))}
+            ))
+          ) : (
+            <div className="col-span-full text-center py-20 text-gray-400 bg-gray-50 rounded-3xl border border-dashed">暂无用户反馈</div>
+          )}
         </div>
       </div>
 
@@ -194,8 +301,8 @@ export function DashboardPage() {
                     <AlertCircle size={24} />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-gray-900">{selectedError.type}</h3>
-                    <p className="text-sm text-gray-500 font-medium">任务 ID: {selectedError.id} · {selectedError.time}</p>
+                    <h3 className="text-xl font-bold text-gray-900">{selectedError.type || selectedError.status}</h3>
+                    <p className="text-sm text-gray-500 font-medium">任务 ID: {selectedError.id} · {selectedError.time || '刚刚'}</p>
                   </div>
                 </div>
                 <button 
@@ -210,20 +317,20 @@ export function DashboardPage() {
                 <div>
                   <h4 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
                     <FileText size={16} className="text-gray-400" />
-                    原始 Prompt
+                    任务日志
                   </h4>
                   <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 text-sm text-gray-700 leading-relaxed shadow-sm">
-                    {selectedError.prompt}
+                    {selectedError.prompt || "无详细 Prompt 信息"}
                   </div>
                 </div>
                 
                 <div>
                   <h4 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
                     <AlertCircle size={16} className="text-red-400" />
-                    错误堆栈
+                    错误详情
                   </h4>
                   <div className="p-4 bg-[#1D1D1F] rounded-2xl text-xs text-red-300 font-mono overflow-x-auto whitespace-pre leading-relaxed shadow-inner">
-                    {selectedError.stack}
+                    {selectedError.stack || selectedError.error_message || "未记录详细错误堆栈"}
                   </div>
                 </div>
               </div>

@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, Brain, Map, Compass } from 'lucide-react';
+import { Sparkles, Brain, Map, Compass, AlertCircle, RefreshCcw } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
+import { useQuery } from '@tanstack/react-query';
+import tripService from '../services/tripService';
 
 interface AgentLoaderProps {
   onComplete: () => void;
+  tripId?: string;
 }
 
-export function AgentLoader({ onComplete }: AgentLoaderProps) {
+export function AgentLoader({ onComplete, tripId }: AgentLoaderProps) {
   const [messageIndex, setMessageIndex] = useState(0);
 
   const messages = [
@@ -17,20 +20,74 @@ export function AgentLoader({ onComplete }: AgentLoaderProps) {
     { text: "即将完成个性化行程定制...", icon: <Compass className="text-amber-400" size={32} /> },
   ];
 
+  // React Query Polling Logic
+  const { 
+    data: trip, 
+    isError, 
+    error, 
+    refetch,
+    isFetching
+  } = useQuery({
+    queryKey: ['pollTrip', tripId],
+    queryFn: () => tripService.pollTripUntilComplete(tripId!),
+    enabled: !!tripId,
+    retry: 1, // Auto-retry once on failure as requested
+    staleTime: 0,
+    gcTime: 0,
+  });
+
+  // Handle completion
   useEffect(() => {
-    if (messageIndex >= messages.length) {
-      const timeout = setTimeout(() => {
+    if (trip) {
+      const timer = setTimeout(() => {
         onComplete();
-      }, 500); // Small delay before completing
-      return () => clearTimeout(timeout);
+      }, 1000);
+      return () => clearTimeout(timer);
     }
+  }, [trip, onComplete]);
 
-    const timer = setTimeout(() => {
-      setMessageIndex(prev => prev + 1);
-    }, 2000); // Show each message for 2 seconds
+  // Message cycling logic
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setMessageIndex(prev => (prev + 1) % messages.length);
+    }, 2500);
 
-    return () => clearTimeout(timer);
-  }, [messageIndex, messages.length, onComplete]);
+    return () => clearInterval(timer);
+  }, [messages.length]);
+
+  if (isError) {
+    return (
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="flex flex-col items-center justify-center py-32 w-full min-h-[400px] text-center px-6"
+      >
+        <div className="w-20 h-20 bg-red-50 text-red-500 rounded-full flex items-center justify-center mb-8 shadow-inner">
+          <AlertCircle size={40} />
+        </div>
+        <h3 className="text-2xl font-bold text-[#1D1D1F] mb-3 tracking-tight">行程生成遇到了一点挑战</h3>
+        <p className="text-gray-500 mb-10 max-w-sm leading-relaxed">
+          {error instanceof Error ? error.message : '我们无法完成您的行程规划，请检查连接或尝试重新生成。'}
+        </p>
+        <div className="flex flex-col sm:flex-row gap-4">
+          <button 
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="px-10 py-4 bg-black text-white rounded-2xl font-bold shadow-xl shadow-black/10 hover:bg-gray-800 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            {isFetching ? <RefreshCcw size={20} className="animate-spin" /> : <RefreshCcw size={20} />}
+            手动重试
+          </button>
+          <button 
+            onClick={() => window.location.reload()}
+            className="px-10 py-4 bg-white text-gray-500 border border-gray-200 rounded-2xl font-bold hover:bg-gray-50 transition-all"
+          >
+            返回修改偏好
+          </button>
+        </div>
+      </motion.div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center justify-center py-32 w-full min-h-[400px]">
@@ -61,7 +118,7 @@ export function AgentLoader({ onComplete }: AgentLoaderProps) {
               exit={{ opacity: 0, scale: 0.5, rotate: 45 }}
               transition={{ duration: 0.3 }}
             >
-              {messageIndex < messages.length ? messages[messageIndex].icon : <Sparkles className="text-white" size={32} />}
+              {messages[messageIndex].icon}
             </motion.div>
           </AnimatePresence>
         </motion.div>
@@ -69,18 +126,16 @@ export function AgentLoader({ onComplete }: AgentLoaderProps) {
 
       <div className="h-12 overflow-hidden flex items-center justify-center relative">
         <AnimatePresence mode="wait">
-          {messageIndex < messages.length && (
-            <motion.div
-              key={messageIndex}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.4, ease: "easeOut" }}
-              className="text-lg md:text-xl font-medium text-gray-700 tracking-tight text-center"
-            >
-              {messages[messageIndex].text}
-            </motion.div>
-          )}
+          <motion.div
+            key={messageIndex}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
+            className="text-lg md:text-xl font-medium text-gray-700 tracking-tight text-center"
+          >
+            {messages[messageIndex].text}
+          </motion.div>
         </AnimatePresence>
       </div>
 
@@ -93,6 +148,12 @@ export function AgentLoader({ onComplete }: AgentLoaderProps) {
           transition={{ duration: 0.5 }}
         />
       </div>
+      
+      {!tripId && (
+        <p className="mt-4 text-[10px] font-bold text-gray-300 uppercase tracking-widest">
+          正在初始化生成任务...
+        </p>
+      )}
     </div>
   );
 }

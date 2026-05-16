@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { ChevronDown, Sparkles, Filter, ListFilter } from 'lucide-react';
+import { ChevronDown, Sparkles, Filter, ListFilter, Loader2 } from 'lucide-react';
 import { TripCard } from '../components/TripCard';
 import { Select } from '../components/ui/Select';
-import { mockTrips } from '../mockData';
+import { useQuery } from '@tanstack/react-query';
+import tripService from '../services/tripService';
 
 interface HistoryPageProps {
   onViewTrip: (id: string) => void;
@@ -12,8 +13,13 @@ export function HistoryPage({ onViewTrip }: HistoryPageProps) {
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
 
+  const { data: trips, isLoading, isError, error } = useQuery({
+    queryKey: ['trips-history'],
+    queryFn: tripService.getHistory,
+  });
+
   // Filtering and Sorting Logic
-  const filteredTrips = mockTrips
+  const filteredTrips = (trips || [])
     .filter(trip => {
       if (statusFilter === 'all') return true;
       return trip.status === statusFilter;
@@ -34,6 +40,30 @@ export function HistoryPage({ onViewTrip }: HistoryPageProps) {
       }
       return 0;
     });
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px]">
+        <Loader2 className="w-10 h-10 animate-spin text-primary mb-4" />
+        <p className="text-gray-500">正在获取您的行程历史...</p>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] p-8 bg-red-50 rounded-3xl border border-red-100">
+        <p className="text-red-600 font-medium mb-4">加载行程历史失败</p>
+        <p className="text-red-400 text-sm mb-6">{(error as any)?.message || '请稍后重试'}</p>
+        <button 
+          onClick={() => window.location.reload()}
+          className="px-6 py-2 bg-white text-red-600 rounded-full text-sm font-bold shadow-sm border border-red-100 hover:bg-red-50 transition-colors"
+        >
+          重试
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-[1280px] mx-auto w-full">
